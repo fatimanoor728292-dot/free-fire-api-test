@@ -1,19 +1,19 @@
 {
   "name": "free-fire-telegram-bot",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
-  "description": "Free Fire Telegram likes bot with Railway-safe ffapis source build",
+  "description": "Railway-safe Free Fire Telegram likes bot with direct game-server integration",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "npm --prefix node_modules/ffapis install --include=dev && npm --prefix node_modules/ffapis run build"
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=18.18.0"
   },
+  "packageManager": "npm@10.8.2",
   "dependencies": {
-    "express": "^4.21.2",
-    "node-telegram-bot-api": "^0.66.0",
-    "ffapis": "git+https://github.com/rifancorteza/ffapis.git#main"
+    "express": "4.21.2",
+    "node-telegram-bot-api": "0.66.0",
+    "protobufjs": "7.4.0"
   }
 }

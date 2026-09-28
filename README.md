@@ -1,56 +1,49 @@
-# Free Fire Telegram Bot v3 — Fixed
+# Free Fire Telegram Bot v4 — Railway Safe
 
-## Railway setup
+This version deliberately does **not** depend on the broken published `ffapis` package or a GitHub npm dependency.
 
-Keep the existing Railway service.
+## Railway variables
 
-### Required variable
-`BOT_TOKEN`
+Required:
+- `BOT_TOKEN`
 
-### Optional variables
-`FF_DEFAULT_REGION=PK`
-`FF_OB_VERSION=OB55`
+Optional:
+- `FF_DEFAULT_REGION=PK`
+- `FF_OB_VERSION=OB55`
+- `FF_LIKE_COUNT=100`
 
-Do NOT put the Telegram token in GitHub files.
-
-## Why this version is different
-
-The previous deployment used the published `ffapis@3.0.1` npm package. Its package metadata publishes `dist/index.*` but not the generated `dist/chunk-*.mjs` files, which can produce `ERR_MODULE_NOT_FOUND`.
-
-This version installs `ffapis` directly from its GitHub source and, during Railway `postinstall`, installs its build dependencies and builds the package locally. That generates the missing chunk files before the bot imports `ffapis`.
-
-The Telegram bot itself starts without importing `ffapis` immediately. The Free Fire library is loaded only when `/like` is used, so a library-side runtime problem cannot prevent `/start` from responding.
+Keep `BOT_TOKEN` only in Railway Variables. Never put it in GitHub.
 
 ## Commands
 
-`/start`
+- `/start`
+- `/like 14262702036`
+- `/like PK 14262702036`
 
-`/like 14262702036`
+## Build design
 
-`/like PK 14262702036`
+The project uses only:
+- Express
+- node-telegram-bot-api
+- protobufjs
 
-The default region is `PK` unless `FF_DEFAULT_REGION` is changed.
+There is no `ffapis` dependency, no postinstall build, and no TypeScript compilation.
 
-## Important
+The Free Fire authentication/like request logic needed by this bot is included directly in `server.js`. Guest accounts are registered at runtime, so no guest-account credential files need to be uploaded to GitHub.
 
-The Free Fire likes operation is unofficial and can stop working if Garena changes its protocol or the library becomes incompatible. The bot reports the actual runtime error instead of pretending that likes were sent.
+## Important operational note
+
+Sending 100 likes requires multiple guest registrations/login/like requests. The bot performs them sequentially and stops after repeated infrastructure failures instead of endlessly retrying.
+
+The bot reports actual successful/failed requests. It never claims likes were sent when the game server did not accept the request.
 
 ## Deployment
 
-Upload these three files to the existing GitHub repository:
-
+Replace the existing:
 - `package.json`
 - `server.js`
 - `README.md`
 
-Do not upload `.env` or the Telegram token.
+Then commit.
 
-After Railway deploys, Logs should contain:
-
-`Web server listening on port ...`
-
-and
-
-`Telegram bot connected: @...`
-
-Do not run another copy of the bot locally with the same Telegram token, because Telegram polling allows only one active consumer for a bot token.
+Do not run another copy of this Telegram bot locally with the same BOT_TOKEN.
