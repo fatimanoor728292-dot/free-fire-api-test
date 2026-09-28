@@ -1,49 +1,44 @@
-# Free Fire Telegram Bot v4 — Railway Safe
+# Free Fire Telegram Bot v5
 
-This version deliberately does **not** depend on the broken published `ffapis` package or a GitHub npm dependency.
+This version deliberately removes `ffapis`, Git dependencies, postinstall scripts,
+TypeScript builds, and other fragile deployment steps.
 
-## Railway variables
+## Railway
 
-Required:
-- `BOT_TOKEN`
+Required variable:
+
+`BOT_TOKEN`
 
 Optional:
-- `FF_DEFAULT_REGION=PK`
-- `FF_OB_VERSION=OB55`
-- `FF_LIKE_COUNT=100`
 
-Keep `BOT_TOKEN` only in Railway Variables. Never put it in GitHub.
+`FF_DEFAULT_REGION=PK`
+
+Optional override:
+
+`LIKE_API_URL=https://botlikesff.rexapi.com.br/api/v2/likes`
+
+The bot also has a fallback HTTP route through `r.jina.ai` if the direct API
+host cannot be reached from the Railway runtime.
 
 ## Commands
 
-- `/start`
-- `/like 14262702036`
-- `/like PK 14262702036`
+`/start`
 
-## Build design
+`/like 14262702036`
 
-The project uses only:
-- Express
-- node-telegram-bot-api
-- protobufjs
+## Important
 
-There is no `ffapis` dependency, no postinstall build, and no TypeScript compilation.
+The likes backend is a third-party service, not an official Garena API.
+Its availability can change. The bot reports the real response/error and does
+not claim likes were sent when the backend did not confirm them.
 
-The Free Fire authentication/like request logic needed by this bot is included directly in `server.js`. Guest accounts are registered at runtime, so no guest-account credential files need to be uploaded to GitHub.
-
-## Important operational note
-
-Sending 100 likes requires multiple guest registrations/login/like requests. The bot performs them sequentially and stops after repeated infrastructure failures instead of endlessly retrying.
-
-The bot reports actual successful/failed requests. It never claims likes were sent when the game server did not accept the request.
+Do not put BOT_TOKEN in GitHub.
 
 ## Deployment
 
 Replace the existing:
-- `package.json`
-- `server.js`
-- `README.md`
+- package.json
+- server.js
+- README.md
 
-Then commit.
-
-Do not run another copy of this Telegram bot locally with the same BOT_TOKEN.
+Commit once and let Railway deploy automatically.
