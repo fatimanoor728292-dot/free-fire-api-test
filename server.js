@@ -1,7 +1,15 @@
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 
+const PORT = Number(process.env.PORT || 8080);
 const BOT_TOKEN = process.env.BOT_TOKEN;
+const DEFAULT_REGION = String(process.env.FF_DEFAULT_REGION || "PK").toUpperCase();
+const OB_VERSION = String(process.env.FF_OB_VERSION || "OB55");
+
+const SUPPORTED_REGIONS = new Set([
+  "SG", "IND", "ID", "ME", "BR", "VN", "BD", "EU", "TH",
+  "SAC", "NA", "RU", "TW", "PK", "CIS", "US", "MY"
+]);
 
 if (!BOT_TOKEN) {
   console.error("BOT_TOKEN is missing. Add BOT_TOKEN in Railway Variables.");
@@ -9,115 +17,149 @@ if (!BOT_TOKEN) {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.get("/", (_req, res) => {
-  res.json({
-    ok: true,
-    service: "Free Fire Telegram Likes Bot",
-    status: "running"
-  });
+  res.status(200).send("Free Fire Telegram Bot is running.");
 });
-
-app.listen(PORT, () => {
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true, bot: "free-fire-telegram-bot" });
+});
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Web server listening on port ${PORT}`);
 });
 
-async function startBot() {
-  // Dynamic import keeps the bot compatible if ffapis is published as ESM.
-  const { LikeAPI } = await import("ffapis");
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-  const obVersion = process.env.FF_OB_VERSION || "OB55";
-  const likeApi = new LikeAPI({ obVersion });
+let likeApiPromise = null;
 
-  const bot = new TelegramBot(BOT_TOKEN, { polling: true });
-
-  console.log(`Telegram bot started. FF OB version: ${obVersion}`);
-
-  bot.onText(/^\/start$/i, async (msg) => {
-    await bot.sendMessage(
-      msg.chat.id,
-      "🔥 Free Fire Likes Bot\\n\\n" +
-      "Apna Free Fire UID bhejo.\\n" +
-      "Default region: PK\\n\\n" +
-      "Example: 14262702036\\n\\n" +
-      "Specific region ke liye:\\n" +
-      "/like PK 14262702036"
-    );
-  });
-
-  bot.onText(/^\/like(?:\\s+([A-Za-z]+))?\\s+(\\d{5,15})$/i, async (msg, match) => {
-    const region = (match[1] || "PK").toUpperCase();
-    const uid = match[2];
-
-    await sendLikes(bot, msg.chat.id, uid, region, likeApi);
-  });
-
-  bot.on("message", async (msg) => {
-    if (!msg.text || msg.text.startsWith("/")) return;
-
-    const uid = msg.text.trim();
-
-    if (!/^\\d{5,15}$/.test(uid)) {
-      await bot.sendMessage(
-        msg.chat.id,
-        "❌ Valid Free Fire UID bhejo (5–15 digits)."
-      );
-      return;
-    }
-
-    await sendLikes(bot, msg.chat.id, uid, "PK", likeApi);
-  });
-
-  bot.on("polling_error", (err) => {
-    console.error("Telegram polling error:", err.message);
-  });
+async function getLikeApi() {
+  if (!likeApiPromise) {
+    likeApiPromise = import("ffapis").then(({ LikeAPI }) => {
+      if (!LikeAPI) throw new Error("ffapis LikeAPI export was not found.");
+      return new LikeAPI({ obVersion: OB_VERSION });
+    });
+  }
+  return likeApiPromise;
 }
 
-async function sendLikes(bot, chatId, uid, region, likeApi) {
-  const progress = await bot.sendMessage(
+function normalizeRegion(value) {
+  const region = String(value || DEFAULT_REGION).trim().toUpperCase();
+  return SUPPORTED_REGIONS.has(region) ? region : null;
+}
+
+function isValidUid(uid) {
+  return /^\d{5,15}$/.test(String(uid));
+}
+
+function formatLikeResult(result, uid, region) {
+  const data = result && typeof result === "object" ? result : {};
+  const likes = data.likes || data.like || {};
+  const before = likes.before ?? likes.likesBefore ?? data.likesBefore;
+  const after = likes.after ?? likes.likesAfter ?? data.likesAfter;
+  const sent = likes.sent ?? likes.sentLikes ?? data.sentLikes ?? data.likeCount;
+
+  const lines = [
+    "❤️ Free Fire Likes",
+    "",
+    `UID: ${uid}`,
+    `Region: ${region}`,
+    ""
+  ];
+
+  if (before !== undefined) lines.push(`Before: ${before}`);
+  if (sent !== undefined) lines.push(`Sent: ${sent}`);
+  if (after !== undefined) lines.push(`After: ${after}`);
+
+  if (lines.length === 5) {
+    lines.push("✅ Like request completed.");
+  } else {
+    lines.push("", "✅ Like request completed.");
+  }
+
+  return lines.join("\n");
+}
+
+bot.onText(/^\/start$/i, async (msg) => {
+  await bot.sendMessage(
+    msg.chat.id,
+    "🔥 Free Fire Likes Bot\n\n" +
+    "UID bhejo:\n" +
+    "/like <UID>\n\n" +
+    `Default region: ${DEFAULT_REGION}\n` +
+    "Example: /like 14262702036\n\n" +
+    "Region ke sath:\n" +
+    "/like PK 14262702036"
+  );
+});
+
+bot.onText(/^\/help$/i, async (msg) => {
+  await bot.sendMessage(
+    msg.chat.id,
+    "📖 Commands\n\n" +
+    "/start — bot start\n" +
+    "/like <UID> — default region se likes\n" +
+    "/like <REGION> <UID> — specific region\n\n" +
+    "Example:\n" +
+    "/like 14262702036\n" +
+    "/like PK 14262702036"
+  );
+});
+
+bot.onText(/^\/like(?:\s+([A-Za-z]+))?\s+(\d{5,15})$/i, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const possibleRegion = match && match[1] ? match[1] : DEFAULT_REGION;
+  const uid = match && match[2] ? match[2] : "";
+
+  const region = normalizeRegion(possibleRegion);
+  if (!region) {
+    await bot.sendMessage(
+      chatId,
+      "❌ Invalid region.\nExample: /like PK 14262702036"
+    );
+    return;
+  }
+
+  if (!isValidUid(uid)) {
+    await bot.sendMessage(chatId, "❌ UID invalid hai. 5–15 digits honi chahiye.");
+    return;
+  }
+
+  const waiting = await bot.sendMessage(
     chatId,
-    `⏳ UID ${uid} receive ho gaya.\\nRegion: ${region}\\n\\nLikes send ho rahe hain...`
+    `⏳ UID ${uid} receive ho gaya.\nRegion: ${region}\nLikes process ho rahe hain...`
   );
 
   try {
-    const result = await likeApi.sendLikes(uid, region, 100);
+    const likeApi = await getLikeApi();
+    const result = await likeApi.sendLikes(uid, region, 100, OB_VERSION);
 
     console.log("Like result:", JSON.stringify(result));
+    await bot.sendMessage(chatId, formatLikeResult(result, uid, region));
+  } catch (error) {
+    console.error("Like request failed:", error);
 
-    const before = result?.likesBefore ?? result?.before ?? result?.oldLikes;
-    const after = result?.likesAfter ?? result?.after ?? result?.newLikes;
-    const sent = result?.likesSent ?? result?.sent ?? result?.added;
-
-    let text = `✅ Likes request complete!\\n\\nUID: ${uid}\\nRegion: ${region}`;
-
-    if (before !== undefined || after !== undefined) {
-      text += `\\nBefore: ${before ?? "?"}\\nAfter: ${after ?? "?"}`;
-    }
-    if (sent !== undefined) {
-      text += `\\nLikes sent: ${sent}`;
-    }
-
-    await bot.editMessageText(text, {
-      chat_id: chatId,
-      message_id: progress.message_id
-    });
-  } catch (err) {
-    console.error("Like API error:", err);
-
-    const detail = String(err?.message || err).slice(0, 500);
-
-    await bot.editMessageText(
-      `❌ Likes send nahi ho sake.\\n\\nUID: ${uid}\\nRegion: ${region}\\n\\nError: ${detail}`,
-      {
-        chat_id: chatId,
-        message_id: progress.message_id
-      }
+    const detail = error && error.message ? error.message : String(error);
+    await bot.sendMessage(
+      chatId,
+      "❌ Likes service failed.\n\n" +
+      `UID: ${uid}\nRegion: ${region}\n\n` +
+      "Technical error: " + detail.slice(0, 700)
     );
   }
-}
-
-startBot().catch((err) => {
-  console.error("Bot startup failed:", err);
-  process.exit(1);
 });
+
+bot.on("polling_error", (error) => {
+  console.error("Telegram polling error:", error);
+});
+
+bot.on("error", (error) => {
+  console.error("Telegram bot error:", error);
+});
+
+bot.getMe()
+  .then((me) => {
+    console.log(`Telegram bot connected: @${me.username}`);
+    console.log(`Default region: ${DEFAULT_REGION}, OB version: ${OB_VERSION}`);
+  })
+  .catch((error) => {
+    console.error("Telegram getMe failed:", error);
+  });
