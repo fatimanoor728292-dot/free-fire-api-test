@@ -1,7 +1,23 @@
-# Free Fire Telegram Bot
+# Free Fire Telegram Likes Bot
 
-Deploy on Railway. Add a Railway variable named `BOT_TOKEN` containing the
-BotFather token. The bot validates a Free Fire UID and is ready for a verified
-likes API to be connected.
+This version connects the Telegram bot to the `ffapis` package.
 
-Never put the BotFather token in GitHub/source code.
+## Railway Variables
+
+Required:
+- `BOT_TOKEN` = your BotFather token
+
+Optional:
+- `FF_OB_VERSION` = `OB55` (default)
+
+## Commands
+
+Send a UID directly:
+`14262702036`
+
+Or specify a region:
+`/like PK 14262702036`
+
+The bot uses the `ffapis` LikeAPI and requests up to 100 likes per target per day.
+
+Do not put the BotFather token in GitHub.

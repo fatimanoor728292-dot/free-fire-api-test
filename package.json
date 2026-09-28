@@ -1,13 +1,18 @@
 {
   "name": "free-fire-telegram-bot",
-  "version": "1.0.0",
-  "description": "Telegram bot for Free Fire UID likes integration",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Telegram bot for sending Free Fire profile likes",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "express": "^4.21.2",
-    "node-telegram-bot-api": "^0.66.0"
+    "node-telegram-bot-api": "^0.66.0",
+    "ffapis": "^3.0.1"
   }
 }
