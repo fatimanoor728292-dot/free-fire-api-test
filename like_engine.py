@@ -106,6 +106,13 @@ async def create_jwt(client, uid, password):
     for attempt in range(3):
         try:
             r2 = await client.post(login_url, content=body, headers=headers2, timeout=30)
+
+            print("========== MAJOR LOGIN DEBUG ==========")
+            print("URL:", login_url)
+            print("STATUS:", r2.status_code)
+            print("BODY:", r2.text[:2000])
+            print("========================================")
+
             if r2.status_code == 503 and attempt < 2:
                 await asyncio.sleep(2 + attempt * 2)
                 continue
