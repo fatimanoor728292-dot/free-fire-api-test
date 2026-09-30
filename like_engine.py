@@ -17,10 +17,15 @@ MAIN_KEY = base64.b64decode("WWcmdGMlREV1aDYlWmNeOA==")
 MAIN_IV = base64.b64decode("Nm95WkRyMjJFM3ljaGpNJQ==")
 CLIENT_SECRET = "2ee44819e9b4598845141067b281621874d0d5d7af9d8f7e00c1e54715b7d1e3"
 CLIENT_ID = 100067
-RELEASE_VERSION = os.getenv("FF_RELEASE_VERSION", "OB50")
+RELEASE_VERSION = os.getenv("FF_RELEASE_VERSION", "OB55")
 
 OAUTH_URL = "https://ffmconnect.live.gop.garenanow.com/oauth/guest/token/grant"
-MAJOR_LOGIN_URL = "https://loginbp.ggblueshark.com/MajorLogin"
+def major_login_url(region):
+    if region in {"PK", "BD", "ME", "VN", "SG", "ID", "RU", "TH", "NA"}:
+        return "https://loginbp.ggpolarbear.com/MajorLogin"
+    if region == "IND":
+        return "https://loginbp.ggblueshark.com/MajorLogin"
+    return "https://loginbp.ggpolarbear.com/MajorLogin"
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -96,8 +101,21 @@ async def create_jwt(client, uid, password):
         "X-GA": "v1 1",
         "ReleaseVersion": RELEASE_VERSION,
     }
-    r2 = await client.post(MAJOR_LOGIN_URL, content=body, headers=headers2, timeout=25)
-    r2.raise_for_status()
+    login_url = major_login_url(os.getenv("FF_REGION", "PK").upper())
+    last_error = None
+    for attempt in range(3):
+        try:
+            r2 = await client.post(login_url, content=body, headers=headers2, timeout=30)
+            if r2.status_code == 503 and attempt < 2:
+                await asyncio.sleep(2 + attempt * 2)
+                continue
+            r2.raise_for_status()
+            break
+        except Exception as exc:
+            last_error = exc
+            if attempt == 2:
+                raise
+            await asyncio.sleep(2 + attempt * 2)
     res = freefire_pb2.LoginRes()
     res.ParseFromString(r2.content)
     if not res.token:
