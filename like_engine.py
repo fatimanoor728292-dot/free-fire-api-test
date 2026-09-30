@@ -96,7 +96,22 @@ async def create_jwt(client, uid, password):
         "X-GA": "v1 1",
         "ReleaseVersion": RELEASE_VERSION,
     }
-    r2 = await client.post(MAJOR_LOGIN_URL, content=body, headers=headers2, timeout=25)
+    r2 = await client.post(
+        MAJOR_LOGIN_URL,
+        content=body,
+        headers=headers2,
+        timeout=25
+    )
+
+    print("========== MAJOR LOGIN DIAGNOSTIC ==========")
+    print("URL:", MAJOR_LOGIN_URL)
+    print("STATUS:", r2.status_code)
+    print("RESPONSE_LENGTH:", len(r2.content))
+    print("CONTENT_TYPE:", r2.headers.get("content-type"))
+    print("SERVER:", r2.headers.get("server"))
+    print("RESPONSE_BODY:", r2.text[:1000])
+    print("============================================")
+
     r2.raise_for_status()
     res = freefire_pb2.LoginRes()
     res.ParseFromString(r2.content)
